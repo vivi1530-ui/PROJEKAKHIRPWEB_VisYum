@@ -1,0 +1,1 @@
+<nav><b>Vi's Yum</b> | <a href="/dashboard">Dashboard</a> | <a href="/tentang">Tentang</a></nav>
