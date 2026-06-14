@@ -11,15 +11,19 @@ use Illuminate\Support\Facades\DB;
 
 class KeranjangController extends Controller
 {
-    // 1. Masukkan item ke keranjang (VERSI PROTEKSI KUANTITAS DAN SISA STOK)
+    // 1. Masukkan item ke keranjang (VERSI AMAN LIVE DEPLOY)
     public function tambah(Request $request, $id)
     {
+        // Pengaman Darurat: Jika sistem dipanggil tanpa input Request (mencegah Error 500)
+        $jumlahDiminta = 1;
+        if ($request instanceof Request) {
+            $jumlahDiminta = $request->input('jumlah', 1);
+        }
+
+        // Cari menu jajanan berdasarkan ID-nya
         $menu = Menu::findOrFail($id);
         
-        // Menangkap kuantitas yang diinput oleh pembeli di form etalase
-        $jumlahDiminta = $request->input('jumlah', 1);
-
-        // Proteksi Awal: Cek apakah stok di database sudah habis terjual (0 atau minus)
+        // Proteksi Awal: Cek apakah stok di database sudah habis terjual
         if ($menu->stok < 1) {
             return redirect()->back()->with('error', 'Maaf, stok jajanan ' . $menu->nama_menu . ' sudah habis!');
         }
@@ -29,6 +33,7 @@ class KeranjangController extends Controller
             return redirect()->back()->with('error', 'Gagal menambahkan! Kamu meminta ' . $jumlahDiminta . ' porsi, sedangkan sisa stok ' . $menu->nama_menu . ' hanya ' . $menu->stok . ' porsi.');
         }
 
+        // Ambil atau buat keranjang belanja untuk user yang sedang login
         $pesanan = Pesanan::where('user_id', Auth::id())
             ->where('status', 'keranjang')
             ->first();
@@ -47,7 +52,7 @@ class KeranjangController extends Controller
         $detail = PesananDetail::where('pesanan_id', $pesanan->id)->where('menu_id', $menu->id)->first();
 
         if ($detail) {
-            // Proteksi Ketiga: Jika item sudah ada di kantong, total gabungan (lama + baru) tidak boleh menjebol stok asli
+            // Proteksi Ketiga: Jika item sudah ada di kantong, total gabungan tidak boleh melebihi stok
             if (($detail->jumlah + $jumlahDiminta) > $menu->stok) {
                 return redirect()->back()->with('error', 'Gagal menambah! Di kantong belanjamu sudah ada ' . $detail->jumlah . ' porsi. Sisa stok total jajanan ' . $menu->nama_menu . ' hanya ' . $menu->stok . ' porsi.');
             }
@@ -70,7 +75,7 @@ class KeranjangController extends Controller
         $pesanan->total_harga = PesananDetail::where('pesanan_id', $pesanan->id)->sum('subtotal');
         $pesanan->save();
 
-        return redirect()->route('beli.index')->with('success', $menu->nama_menu . ' berhasil dimasukkan ke kantong belanja.');
+        return redirect()->back()->with('success', $menu->nama_menu . ' berhasil dimasukkan ke kantong belanja.');
     }
 
     // 2. Tampilkan Halaman Daftar Keranjang
@@ -82,7 +87,6 @@ class KeranjangController extends Controller
             ->where('status', 'keranjang')
             ->first();
 
-        // Mengambil info tanggal hari ini, jam sekarang, dan set slot jam bawaan toko
         $hariIni = now()->format('Y-m-d');
         $jamSekarang = now()->format('H:i');
         $slotJam = ['09:00', '12:00', '15:00'];
@@ -104,7 +108,7 @@ class KeranjangController extends Controller
         return redirect()->back()->with('success', 'Menu berhasil dihapus dari keranjang.');
     }
 
-    // 4. Kunci keranjang, lanjut ke halaman QRIS (STATUS TETAP 'keranjang')
+    // 4. Kunci keranjang, lanjut ke halaman QRIS
     public function checkout(Request $request)
     {
         $pesanan = Pesanan::where('user_id', Auth::id())->where('status', 'keranjang')->first();
@@ -118,7 +122,6 @@ class KeranjangController extends Controller
             'jam_ambil' => 'required',
         ]);
 
-        // Simpan waktu pengambilan, status dibiarkan tetap 'keranjang' agar tidak bocor ke owner/riwayat pembeli
         $pesanan->tanggal_ambil = $request->tanggal_ambil;
         $pesanan->jam_ambil = $request->jam_ambil;
         $pesanan->save();
@@ -126,33 +129,30 @@ class KeranjangController extends Controller
         return redirect()->route('pembayaran', $pesanan->id);
     }
 
-    // 5. Tampilkan halaman barcode QRIS (Mengambil data yang masih berstatus 'keranjang')
+    // 5. Tampilkan halaman barcode QRIS
     public function pembayaran($id)
     {
         $pesanan = Pesanan::with('details.menu')
             ->where('user_id', Auth::id())
-            ->where('status', 'keranjang') // Dipastikan mengikat ke status keranjang
+            ->where('status', 'keranjang') 
             ->findOrFail($id);
             
         return view('keranjang.pembayaran', compact('pesanan'));
     }
 
-    // 6. Logika potong stok & ubah status dari 'keranjang' LANGSUNG ke 'lunas'
+    // 6. Logika potong stok & ubah status dari 'keranjang' ke 'lunas'
     public function konfirmasiPembayaran($id)
     {
-        // Hanya eksekusi pesanan yang statusnya masih 'keranjang'
         $pesanan = Pesanan::with('details.menu')
             ->where('status', 'keranjang')
             ->findOrFail($id);
 
-        // Validasi stok darurat akhir sebelum uang dipotong
         foreach ($pesanan->details as $detail) {
             if ($detail->menu && $detail->menu->stok < $detail->jumlah) {
                 return redirect()->route('beli.index')->with('error', 'Transaksi gagal! Stok Jajanan ' . $detail->menu->nama_menu . ' mendadak habis dibeli pelanggan lain.');
             }
         }
 
-        // Proses pemotongan stok aktual database
         foreach ($pesanan->details as $detail) {
             if ($detail->menu) {
                 $menu = $detail->menu;
@@ -164,7 +164,6 @@ class KeranjangController extends Controller
         date_default_timezone_set('Asia/Jakarta');
         $waktuSekarang = date('Y-m-d H:i:s');
 
-        // Langsung ubah status dari 'keranjang' menjadi 'lunas' di sini
         DB::table('pesanans')
             ->where('id', $id)
             ->update([
@@ -175,19 +174,19 @@ class KeranjangController extends Controller
         return redirect()->route('pesanan.index')->with('success', 'Pembayaran Berhasil! Pesanan kamu sekarang langsung masuk ke antrean dapur Owner.');
     }
 
-    // 7. Fitur Riwayat Pesanan Akun Pembeli (Hanya memunculkan yang bukan berstatus 'keranjang')
+    // 7. Fitur Riwayat Pesanan Akun Pembeli
     public function riwayatPembeli()
     {
         $riwayat = Pesanan::with('details.menu')
             ->where('user_id', Auth::id())
-            ->where('status', '!=', 'keranjang') // Otomatis menyembunyikan transaksi gantung/setengah jalan
+            ->where('status', '!=', 'keranjang') 
             ->orderBy('updated_at', 'desc')
             ->get();
 
         return view('keranjang.riwayat', compact('riwayat'));
     }
 
-    // 8. Mengubah jumlah kuantitas item (+/-) di dalam keranjang belanjaan kanan
+    // 8. Mengubah jumlah kuantitas item (+/-) di dalam keranjang belanjaan
     public function updateKuantitas(Request $request, $id)
     {
         $detail = PesananDetail::with('menu')->findOrFail($id);
