@@ -128,7 +128,6 @@
         }
 
         /* ================= ☀️ DESAIN TRANSPARAN & TEKS PUTIH (SAMA RATALKAN GLOBAL) ================= */
-        /* Beranda, Dashboard, Owner, Pembeli, Publik, semuanya pakai struktur transparan ini */
         body .card, 
         body .bg-white,
         body .list-group-item {
@@ -266,9 +265,20 @@
             color: #f1f5f9 !important;
             text-shadow: none !important;
         }
+
+        /* 🆕 STYLING KHUSUS HOVER SOSMED FOOTER BARU */
+        .sosmed-hover {
+            transition: transform 0.3s ease, filter 0.3s ease;
+        }
+        .sosmed-hover:hover {
+            transform: translateY(-5px);
+            filter: drop-shadow(0 4px 10px rgba(255, 255, 255, 0.25));
+        }
+        .sosmed-hover:hover span {
+            color: #ffc107 !important;
+        }
     </style>
 </head>
-{{-- Class 'is-public-page' tetap dipasang otomatis jika belum login untuk kontrol javascript --}}
 <body class="{{ !auth()->check() ? 'is-public-page' : '' }}">
 
     <nav class="navbar navbar-expand-lg navbar-dark custom-navbar py-3 fixed-top shadow-sm">
@@ -359,8 +369,32 @@
         @yield('content')
     </main>
 
-    <footer class="text-center py-4 text-muted small mt-5 border-top border-secondary border-opacity-10">
-        &copy; 2026 Vi's Yum - Jajanan Kesukaan Kita Semua
+    <footer class="text-center py-5 mt-5 border-top border-secondary border-opacity-20" style="background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+        <div class="container">
+            <h5 class="fw-bold mb-2" style="color: #ffc107; font-size: 1.3rem; text-shadow: 0 1px 3px rgba(0,0,0,0.5) !important;">Yuk, Kepoin Vi's Yum di Sosmed!</h5>
+            <p class="small mb-4" style="color: rgba(255, 255, 255, 0.8) !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;">Ikuti keseruan kami dan dapatkan info promo menarik setiap hari</p>
+            
+            <div class="d-flex justify-content-center gap-4 align-items-center flex-wrap mb-4">
+                <a href="https://instagram.com/visyum.id" target="_blank" class="text-decoration-none sosmed-hover mx-3">
+                    <i class="bi bi-instagram d-block mb-1 text-danger" style="font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>
+                    <span class="small fw-semibold d-block text-white">@visyum.id</span>
+                </a>
+
+                <a href="https://tiktok.com/@visyum.id" target="_blank" class="text-decoration-none sosmed-hover mx-3">
+                    <i class="bi bi-tiktok d-block mb-1 text-light" style="font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>
+                    <span class="small fw-semibold d-block text-white">Vi's Yum TikTok</span>
+                </a>
+
+                <a href="https://wa.me/6281234567890" target="_blank" class="text-decoration-none sosmed-hover mx-3">
+                    <i class="bi bi-whatsapp d-block mb-1 text-success" style="font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>
+                    <span class="small fw-semibold d-block text-white">Hubungi Admin</span>
+                </a>
+            </div>
+
+            <hr class="my-4 border-light opacity-25" style="max-width: 300px; margin: 0 auto;">
+            
+            <p class="mb-0 small" style="color: rgba(255, 255, 255, 0.6) !important; text-shadow: 0 1px 2px rgba(0,0,0,0.4) !important;">&copy; 2026 Vi's Yum - Jajanan Kesukaan Kita Semua</p>
+        </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
