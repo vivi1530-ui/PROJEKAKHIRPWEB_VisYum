@@ -17,6 +17,11 @@ return new class extends Migration
             $table->string('kode_transaksi')->unique();
             $table->integer('total_harga');
             $table->enum('status', ['keranjang', 'menunggu_pembayaran', 'selesai'])->default('keranjang');
+            
+            // Dua kolom baru yang ditambahkan agar sinkron dengan KeranjangController
+            $table->date('tanggal_ambil')->nullable();
+            $table->time('jam_ambil')->nullable();
+            
             $table->timestamps();
         });
     }
