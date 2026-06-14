@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 class KeranjangController extends Controller
 {
     /**
-     * 🛒 1. MASUKKAN ITEM KE KERANJANG (VERSI AMAN LIVE DEPLOY - FIX ERROR 500)
+     * 🛒 1. MASUKKAN ITEM KE KERANJANG (VERSI SUPER AMAN RAILWAY - ANTI ERROR 500)
      */
     public function tambah(Request $request, $id)
     {
@@ -21,7 +21,6 @@ class KeranjangController extends Controller
             return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu untuk memesan kue!');
         }
 
-        // Pengaman Darurat: Jika sistem dipanggil tanpa input Request (mencegah Error 500)
         $jumlahDiminta = 1;
         if ($request instanceof Request) {
             $jumlahDiminta = $request->input('jumlah', 1);
@@ -40,24 +39,35 @@ class KeranjangController extends Controller
             return redirect()->back()->with('error', 'Gagal menambahkan! Kamu meminta ' . $jumlahDiminta . ' porsi, sedangkan sisa stok ' . $menu->nama_menu . ' hanya ' . $menu->stok . ' porsi.');
         }
 
-        // Ambil atau buat keranjang belanja untuk user yang sedang login
-        $pesanan = Pesanan::where('user_id', Auth::id())
+        // Konversi ID pembeli menjadi integer murni untuk menghindari Type Mismatch di database production
+        $userId = (int) Auth::id();
+
+        // Ambil keranjang belanja aktif untuk user yang sedang login
+        $pesanan = Pesanan::where('user_id', $userId)
             ->where('status', 'keranjang')
             ->first();
 
-        // FIX FIX_FILLABLE: Menggunakan pendekatan objek manual agar lolos dari jeratan Mass Assignment di Railway
+        // Jika belum ada keranjang, buat objek baru (Bypass Strict DB Rule & Null Constraint)
         if (!$pesanan) {
             $pesanan = new Pesanan();
-            $pesanan->user_id = Auth::id();
+            $pesanan->user_id = $userId;
             $pesanan->kode_transaksi = 'VY-' . time() . rand(10, 99);
             $pesanan->total_harga = 0;
             $pesanan->status = 'keranjang'; 
-            $pesanan->tanggal_ambil = null;
-            $pesanan->jam_ambil = null;
+            
+            // Mengisi data fallback default pengganti NULL agar tidak ditolak oleh NOT NULL constraint database live
+            $pesanan->tanggal_ambil = now()->format('Y-m-d');
+            $pesanan->jam_ambil = now()->format('H:i');
             $pesanan->save();
         }
 
-        $detail = PesananDetail::where('pesanan_id', $pesanan->id)->where('menu_id', $menu->id)->first();
+        // Pastikan ID Pesanan dikonversi menjadi integer murni
+        $pesananId = (int) $pesanan->id;
+        $menuId = (int) $menu->id;
+
+        $detail = PesananDetail::where('pesanan_id', $pesananId)
+            ->where('menu_id', $menuId)
+            ->first();
 
         if ($detail) {
             // Proteksi Ketiga: Jika item sudah ada di kantong, total gabungan tidak boleh melebihi stok
@@ -70,10 +80,10 @@ class KeranjangController extends Controller
             $detail->subtotal = $detail->jumlah * $hargaMenu;
             $detail->save();
         } else {
-            // FIX DETAIL_FILLABLE: Menggunakan pendekatan objek manual juga pada detail item baru
+            // Buat detail item baru secara manual dengan casting integer ketat
             $detail = new PesananDetail();
-            $detail->pesanan_id = $pesanan->id;
-            $detail->menu_id = $menu->id;
+            $detail->pesanan_id = $pesananId;
+            $detail->menu_id = $menuId;
             $detail->jumlah = $jumlahDiminta;
             $detail->harga_saat_ini = $menu->harga;
             $detail->subtotal = $menu->harga * $jumlahDiminta;
@@ -81,7 +91,7 @@ class KeranjangController extends Controller
         }
 
         // Hitung ulang total harga pesanan secara real-time
-        $pesanan->total_harga = PesananDetail::where('pesanan_id', $pesanan->id)->sum('subtotal');
+        $pesanan->total_harga = PesananDetail::where('pesanan_id', $pesananId)->sum('subtotal');
         $pesanan->save();
 
         return redirect()->back()->with('success', $menu->nama_menu . ' berhasil dimasukkan ke kantong belanja.');
