@@ -11,9 +11,16 @@ use Illuminate\Support\Facades\DB;
 
 class KeranjangController extends Controller
 {
-    // 1. Masukkan item ke keranjang (VERSI AMAN LIVE DEPLOY)
+    /**
+     * 🛒 1. MASUKKAN ITEM KE KERANJANG (VERSI AMAN LIVE DEPLOY - FIX ERROR 500)
+     */
     public function tambah(Request $request, $id)
     {
+        // Pengaman: Pastikan user sudah login sebelum berbelanja
+        if (!Auth::check()) {
+            return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu untuk memesan kue!');
+        }
+
         // Pengaman Darurat: Jika sistem dipanggil tanpa input Request (mencegah Error 500)
         $jumlahDiminta = 1;
         if ($request instanceof Request) {
@@ -38,15 +45,16 @@ class KeranjangController extends Controller
             ->where('status', 'keranjang')
             ->first();
 
+        // FIX FIX_FILLABLE: Menggunakan pendekatan objek manual agar lolos dari jeratan Mass Assignment di Railway
         if (!$pesanan) {
-            $pesanan = Pesanan::create([
-                'user_id' => Auth::id(),
-                'kode_transaksi' => 'VY-' . time() . rand(10, 99),
-                'total_harga' => 0,
-                'status' => 'keranjang', 
-                'tanggal_ambil' => null,
-                'jam_ambil' => null,
-            ]);
+            $pesanan = new Pesanan();
+            $pesanan->user_id = Auth::id();
+            $pesanan->kode_transaksi = 'VY-' . time() . rand(10, 99);
+            $pesanan->total_harga = 0;
+            $pesanan->status = 'keranjang'; 
+            $pesanan->tanggal_ambil = null;
+            $pesanan->jam_ambil = null;
+            $pesanan->save();
         }
 
         $detail = PesananDetail::where('pesanan_id', $pesanan->id)->where('menu_id', $menu->id)->first();
@@ -62,23 +70,26 @@ class KeranjangController extends Controller
             $detail->subtotal = $detail->jumlah * $hargaMenu;
             $detail->save();
         } else {
-            // Jika item benar-benar baru dimasukkan ke keranjang
-            PesananDetail::create([
-                'pesanan_id' => $pesanan->id,
-                'menu_id' => $menu->id,
-                'jumlah' => $jumlahDiminta,
-                'harga_saat_ini' => $menu->harga,
-                'subtotal' => $menu->harga * $jumlahDiminta
-            ]);
+            // FIX DETAIL_FILLABLE: Menggunakan pendekatan objek manual juga pada detail item baru
+            $detail = new PesananDetail();
+            $detail->pesanan_id = $pesanan->id;
+            $detail->menu_id = $menu->id;
+            $detail->jumlah = $jumlahDiminta;
+            $detail->harga_saat_ini = $menu->harga;
+            $detail->subtotal = $menu->harga * $jumlahDiminta;
+            $detail->save();
         }
 
+        // Hitung ulang total harga pesanan secara real-time
         $pesanan->total_harga = PesananDetail::where('pesanan_id', $pesanan->id)->sum('subtotal');
         $pesanan->save();
 
         return redirect()->back()->with('success', $menu->nama_menu . ' berhasil dimasukkan ke kantong belanja.');
     }
 
-    // 2. Tampilkan Halaman Daftar Keranjang
+    /**
+     * 📋 2. TAMPILKAN HALAMAN DAFTAR KERANJANG
+     */
     public function index()
     {
         $menus = Menu::all();
@@ -94,7 +105,9 @@ class KeranjangController extends Controller
         return view('keranjang.index', compact('menus', 'pesananAktif', 'hariIni', 'jamSekarang', 'slotJam'));
     }
 
-    // 3. Hapus item dari keranjang
+    /**
+     * ❌ 3. HAPUS ITEM DARI KERANJANG
+     */
     public function hapus($id)
     {
         $detail = PesananDetail::findOrFail($id);
@@ -108,7 +121,9 @@ class KeranjangController extends Controller
         return redirect()->back()->with('success', 'Menu berhasil dihapus dari keranjang.');
     }
 
-    // 4. Kunci keranjang, lanjut ke halaman QRIS
+    /**
+     * 🔒 4. KUNCI KERANJANG, LANJUT KE HALAMAN QRIS
+     */
     public function checkout(Request $request)
     {
         $pesanan = Pesanan::where('user_id', Auth::id())->where('status', 'keranjang')->first();
@@ -129,7 +144,9 @@ class KeranjangController extends Controller
         return redirect()->route('pembayaran', $pesanan->id);
     }
 
-    // 5. Tampilkan halaman barcode QRIS
+    /**
+     * 💳 5. TAMPILKAN HALAMAN BARCODE QRIS
+     */
     public function pembayaran($id)
     {
         $pesanan = Pesanan::with('details.menu')
@@ -140,7 +157,9 @@ class KeranjangController extends Controller
         return view('keranjang.pembayaran', compact('pesanan'));
     }
 
-    // 6. Logika potong stok & ubah status dari 'keranjang' ke 'lunas'
+    /**
+     * ⚡ 6. LOGIKA POTONG STOK & UBAH STATUS DARI 'KERANJANG' KE 'LUNAS'
+     */
     public function konfirmasiPembayaran($id)
     {
         $pesanan = Pesanan::with('details.menu')
@@ -174,7 +193,9 @@ class KeranjangController extends Controller
         return redirect()->route('pesanan.index')->with('success', 'Pembayaran Berhasil! Pesanan kamu sekarang langsung masuk ke antrean dapur Owner.');
     }
 
-    // 7. Fitur Riwayat Pesanan Akun Pembeli
+    /**
+     * 📜 7. FITUR RIWAYAT PESANAN AKUN PEMBELI
+     */
     public function riwayatPembeli()
     {
         $riwayat = Pesanan::with('details.menu')
@@ -186,7 +207,9 @@ class KeranjangController extends Controller
         return view('keranjang.riwayat', compact('riwayat'));
     }
 
-    // 8. Mengubah jumlah kuantitas item (+/-) di dalam keranjang belanjaan
+    /**
+     * 🔄 8. MENGUBAH JUMLAH KUANTITAS ITEM (+/-) DI DALAM KERANJANG
+     */
     public function updateKuantitas(Request $request, $id)
     {
         $detail = PesananDetail::with('menu')->findOrFail($id);
