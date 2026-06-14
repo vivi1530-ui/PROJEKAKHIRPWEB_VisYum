@@ -1,6 +1,6 @@
-FROM php:8.2-apache
+FROM php:8.2-cli
 
-# 1. Install dependensi sistem & ekstensi PHP wajib
+# 1. Install dependensi Linux & ekstensi PHP wajib untuk database
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libxml2-dev \
@@ -9,32 +9,18 @@ RUN apt-get update && apt-get install -y \
     git \
     && docker-php-ext-install pdo_mysql bcmath
 
-# 2. JINAKKAN APACHE (Matikan mpm_event agar tidak tabrakan / More than one MPM loaded)
-RUN a2dismod mpm_event || true
-
-# 3. Aktifkan mod_rewrite Apache agar routing url web Laravel tidak 404
-RUN a2enmod rewrite
-
-# 4. Ubah Document Root Apache langsung ke folder /public milik Laravel
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
-
-# 5. Amankan log Apache agar dialihkan ke stdout/stderr biar tidak bikin crash
-RUN ln -sf /dev/stdout /var/log/apache2/access.log && ln -sf /dev/stderr /var/log/apache2/error.log
-
-# 6. Tentukan lokasi kerja dan salin codingan
+# 2. Tentukan lokasi kerja di dalam server
 WORKDIR /var/www/html
 COPY . .
 
-# 7. Pasang Composer dan unduh vendor tanpa menjalankan script sensitif
+# 3. Pasang Composer dan unduh folder vendor secara bersih
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --no-scripts --optimize-autoloader
 
-# 8. Berikan hak akses penuh ke folder storage & cache
-RUN chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache
-RUN chown -R www-data:www-data /var/www/html
+# 4. Berikan hak akses folder storage dan cache
+RUN chmod -R 777 storage bootstrap/cache
 
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+# 5. Nyalakan web server internal PHP langsung menembak ke port 80 dan folder public
+CMD ["php", "-S", "0.0.0.0:80", "-t", "public"]
