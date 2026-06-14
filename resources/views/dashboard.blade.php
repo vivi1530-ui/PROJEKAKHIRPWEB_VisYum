@@ -24,12 +24,11 @@
             <h1 class="display-4 fw-black text-white mb-3" style="letter-spacing: -1px; line-height: 1.2; text-shadow: 0 2px 4px rgba(0,0,0,0.5); font-weight: 900;">
                 Eksplorasi Rasa <br><span class="text-warning">Jajanan Tradisional</span> <br>Kekinian Di Sini!
             </h1>
-            {{-- 🌟 FIX: Mengubah class menjadi text-white murni & membetulkan typo legendaris 🌟 --}}
             <p class="lead text-white mb-4" style="font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">
                 Menghadirkan kembali cita rasa legendaris aneka kue basah dan takjil pasar tradisional dengan standar kualitas modern yang bersih, lezat, dan ramah di kantong.
             </p>
             <div class="d-flex gap-3">
-                <a href="{{ route('keranjang.index') }}" class="btn btn-success btn-lg px-4 py-3 rounded-pill shadow fw-bold" style="font-size: 1rem; background: #2e7d32 !important; border: none;">
+                <a href="#etalase-kue" class="btn btn-success btn-lg px-4 py-3 rounded-pill shadow fw-bold" style="font-size: 1rem; background: #2e7d32 !important; border: none;">
                     Pesan Sekarang <i class="bi bi-bag-heart-fill ms-1"></i>
                 </a>
                 
@@ -192,9 +191,13 @@
                                 <span class="fw-bold text-warning fs-5">Rp {{ number_format($item->harga ?? $item->price, 0, ',', '.') }}</span>
                             </div>
                             
-                            <a href="{{ route('keranjang.index') }}" class="btn btn-success btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm button-plus" style="width: 38px; height: 38px; background: #2e7d32 !important; border:none;" title="Pesan Kue">
-                                <i class="bi bi-cart-plus fs-5 text-white"></i>
-                            </a>
+                            {{-- 🌟 SOLUSI FIX ERROR DEPLOY: Menggunakan Form POST ke route asli 'keranjang.tambah' --}}
+                            <form action="{{ route('keranjang.tambah', $item->id) }}" method="POST" class="m-0">
+                                @csrf
+                                <button type="submit" class="btn btn-success btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm button-plus" style="width: 38px; height: 38px; background: #2e7d32 !important; border:none;" title="Pesan Kue">
+                                    <i class="bi bi-cart-plus fs-5 text-white"></i>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -208,6 +211,15 @@
                 <p class="text-white-50 small">Varian kue pasar dari database Owner belum termuat.</p>
             </div>
         @endforelse
+
+        {{-- Element Info jika hasil pencarian JavaScript kosong --}}
+        <div class="col-12 text-center py-5 my-4 bg-transparent border-0 d-none" id="search-empty-state">
+            <div class="d-inline-flex align-items-center justify-content-center bg-white bg-opacity-10 rounded-circle p-4 mb-3" style="width: 80px; height: 80px;">
+                <i class="bi bi-search text-white-50 fs-1"></i>
+            </div>
+            <h4 class="fw-bold text-white mb-1">Kue Tidak Ditemukan</h4>
+            <p class="text-white-50 small">Coba cari dengan kata kunci jajanan pasar lainnya.</p>
+        </div>
     </div>
 
     <div class="my-4"></div>
@@ -271,10 +283,12 @@ document.addEventListener("DOMContentLoaded", function() {
     const searchInput = document.getElementById('search-menu');
     const kategoriSelect = document.getElementById('filter-kategori');
     const menuCards = document.querySelectorAll('.menu-item-card');
+    const searchEmptyState = document.getElementById('search-empty-state');
 
     function filterMenu() {
         const searchText = searchInput.value.toLowerCase().trim();
         const selectedKategori = kategoriSelect.value.toLowerCase();
+        let anyVisible = false;
 
         menuCards.forEach(card => {
             const namaKue = card.getAttribute('data-name') || '';
@@ -285,10 +299,19 @@ document.addEventListener("DOMContentLoaded", function() {
 
             if (cocokSearch && cocokKategori) {
                 card.style.setProperty('display', 'block', 'important');
+                anyVisible = true;
             } else {
                 card.style.setProperty('display', 'none', 'important');
             }
         });
+
+        if (searchEmptyState) {
+            if (!anyVisible && menuCards.length > 0) {
+                searchEmptyState.classList.remove('d-none');
+            } else {
+                searchEmptyState.classList.add('d-none');
+            }
+        }
     }
 
     if(searchInput) searchInput.addEventListener('input', filterMenu);
@@ -329,7 +352,12 @@ document.addEventListener("DOMContentLoaded", function() {
 </script>
 
 <style>
-    /* 🌟 FIX: Hover Navbar jadi kuning di Mode Gelap (.dashboard-theme) 🌟 */
+    /* 🌟 Membuat pergeseran halaman saat klik "Pesan Sekarang" menjadi halus */
+    html {
+        scroll-behavior: smooth;
+    }
+
+    /* Hover Navbar jadi kuning di Mode Gelap (.dashboard-theme) */
     .dashboard-theme .navbar .navbar-nav .nav-link:hover,
     .dashboard-theme .navbar a:hover,
     .dashboard-theme .navbar button:hover,
