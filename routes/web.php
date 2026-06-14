@@ -137,3 +137,5 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Membawa rute otentikasi bawaan Laravel Breeze (Login, Register, Logout)
 require __DIR__.'/auth.php';
+
+// trigger restart railway murni 
