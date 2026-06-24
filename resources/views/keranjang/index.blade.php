@@ -578,7 +578,7 @@
 
                         if (selectJam.value === option.value) {
 
-                            selectJam.value = ""; // Reset jika jam yang dipilih hangus
+                            selectJam.value = ""; // Reset 
 
                         }
 
